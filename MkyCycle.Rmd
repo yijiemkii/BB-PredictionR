@@ -1,0 +1,178 @@
+---
+title: "MkyCycle"
+author: "Yijie Wang (yw484)"
+date: "2022/2/7"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## setup
+```{r}
+library(reticulate)
+setwd("~/GitHub/BB-PredictionR")
+#py_install("matplotlib")
+#py_install("seaborn")
+#py_install("yfinance")
+#py_install('fredapi')
+#py_install("quandl")
+
+```
+
+
+```{python}
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import datetime as dt
+from datetime import timedelta as td
+import seaborn as sns
+import os
+import fmplot
+import fmcycle
+import fmget
+```
+```{python}
+update_data=True
+
+if update_data==True:
+    print('today =',dt.datetime.today())
+    start=dt.datetime(2010,12,31)  # update data start
+    end=dt.datetime(2022,2,25)   # update data end
+
+    # Quandle API key
+    #quandle_api_key_file = "quandl_api_key_file"
+    #f = open(quandle_api_key_file,'r')
+    quandl_api_key="MjF-CKFWJR-mE78sb15A"
+    #f.close
+
+    # Fred API key
+    #fred_api_key_file = "fred_api_key_file"
+    #f = open(fred_api_key_file,'r')
+    fred_api_key="a19b53296199d2aa189a12c99b960218"
+    #f.close
+    
+    df_AAPL =  pd.DataFrame()
+    df_t10y3m =  pd.DataFrame()
+    df_unrate =  pd.DataFrame()
+    df_cpiaucsl =  pd.DataFrame()
+    df_umcsent =  pd.DataFrame()
+    
+    df_AAPL=fmget.yahoo_getappend('AAPL',start,end,df=df_AAPL,save=True,savedir='./data_aapl')
+    #df_sppe=quandl_sppe_getappend(df_sppe_daily,df_sp500,quandl_api_key, start,end,save=True, savedir='./data')
+    df_t10y3m=fmget.fred_getappend('T10Y3M',start,end,df=df_t10y3m,API_KEY_FRED=fred_api_key,save=True,savedir='./data_aapl')
+    #df_gdp=fred_getappend('GDP',start,end,df=df_gdp,API_KEY_FRED=fred_api_key,save=True,savedir='./data')
+    df_unrate=fmget.fred_getappend('UNRATE',start,end,df=df_unrate,API_KEY_FRED=fred_api_key,save=True,savedir='./data_aapl')
+    df_cpiaucsl=fmget.fred_getappend('CPIAUCSL',start,end,df=df_cpiaucsl,API_KEY_FRED=fred_api_key,save=True,savedir='./data_aapl')
+    df_umcsent=fmget.fred_getappend('UMCSENT',start,end,df=df_umcsent,API_KEY_FRED=fred_api_key,save=True,savedir='./data_aapl')
+
+
+    
+print(df_AAPL.tail(2))
+print(df_t10y3m.tail(2))
+#display(df_sppe.tail(2))
+#display(df_gdp.tail(2))
+print(df_unrate.tail(2))
+print(df_cpiaucsl.tail(2))
+print(df_umcsent.tail(2))
+    
+# today = 2020-10-06 12:24:59.975927
+#2020-08-01 00:00:00 2020-10-06 00:00:00
+#[*********************100%***********************]  1 of 1 completed
+#df to csv, filename =  ./data/GSPC_1950-1-3_to_2020-10-5.csv
+#df to csv, filename =  ./data/sp500_pe_daily_1950-1-3_to_2020-10-5.csv
+#df to csv, filename =  ./data/T10Y3M_1982-1-4_to_2020-10-5.csv
+#df to csv, filename =  ./data/GDP_1947-1-1_to_2020-4-1.csv
+#df to csv, filename =  ./data/UNRATE_1948-1-1_to_2020-9-1.csv
+#df to csv, filename =  ./data/CPIAUCSL_1947-1-1_to_2020-8-1.csv
+#df to csv, filename =  ./data/UMCSENT_1953-2-1_to_2020-8-1.csv
+```
+One month lag in Macro data
+
+```{python}
+import fmtransforms
+import fmplot
+import fmcycle
+
+compute=1   # if compute is 1 then compute new market cycles, else load from saved file
+
+f_dfmc=".data_aapl/aapl_dfmc.csv"
+f_dfmcs=".data_aapl/aapl_dfmcs.csv"
+
+mcycledown=20
+mcycleup=20.5
+
+#string = get_market_cycles()
+print('today =',dt.datetime.today())
+```
+
+```{python}
+df_mc,df_mcsummary=fmcycle.fmcycles(df=df_AAPL,symbol='AAPL',compute=compute, mc_filename=f_dfmc, mcs_filename=f_dfmcs,
+                 mcdown_p=mcycledown,mcup_p=mcycleup,savedir="./data_aapl")
+```
+
+```{python}
+print(df_mc.tail(2))
+```
+
+```{python}
+df_ml=pd.DataFrame()
+
+# Join PE, Earnings and Market Cycles 
+# Drop Adj Close, does not make sense for S&P
+# Compute Earnings percent return
+#df_sppe=period_percent_change(df_sppe,'Earnings',new_variable_name = 'Earnings_mom')
+#df_ml=fmjoinff(df_mc,df_sppe[['PE','Earnings','Earnings_mom']],verbose=False,dropnas=True).drop(['Adj Close'],axis=1)
+df_ml = df_mc
+
+# Yield Curve, T10Y3M, 10 Year Treasury - 3 Month Treasury
+df_ml=fmtransforms.fmjoinff(df_ml,df_t10y3m,verbose=False,dropnas=True)
+
+# GDP
+#df_gdp = gdprecession(df_gdp,'GDP') # adds gdg_qoq, recession1q, recession2q
+#df_ml=fmjoinff(df_ml,df_gdp,verbose=False,dropnas=True)
+
+# Unemployment
+df_unrate=fmtransforms.period_percent_change(df_unrate,'UNRATE',new_variable_name='unrate_pchange')
+df_ml=fmtransforms.fmjoinff(df_ml,df_unrate,verbose=False,dropnas=True)
+
+# Consumer price index
+df_cpi=fmtransforms.period_percent_change(df_cpiaucsl,'CPIAUCSL',new_variable_name='cpimom')
+df_ml=fmtransforms.fmjoinff(df_ml,df_cpi[['CPIAUCSL','cpimom']],verbose=False,dropnas=True)
+
+# Consumter Sentiment
+df_umcsent=fmtransforms.period_percent_change(df_umcsent,'UMCSENT',new_variable_name='umcsent_pchange')
+df_ml=fmtransforms.fmjoinff(df_ml,df_umcsent,verbose=False,dropnas=True)
+
+
+# Simple Moving Averages
+df_ml=fmtransforms.dfsma(df_ml,'Close',windows=[20,50,200])
+
+# Normalized mavgs
+#   1-day (today / yesterday .... sma5 = 5-day smavg( today / yesterday ) .... )
+df_ml=fmtransforms.dfnma(df_ml,['Close','Volume'],windows=[1,5,10,15,20,30,50,200])
+
+# Relative 200-day moving average
+# scale of 0 to 1
+df_ml=fmtransforms.dfrma(df_ml,'Close_sma50','Close_sma200',varname='rma_sma50_sma200')
+df_ml=fmtransforms.dfrma(df_ml,'Close_sma20','Close_sma50',varname='rma_sma20_sma50')
+
+# ADX
+df_ml=fmtransforms.dfadx(df_ml,'Close','High','Low',window=50)
+
+# Volatility ... Log Return Std Dev, and Velocity
+df_ml=fmtransforms.dflogretstd(df_ml,'Close',windows=[25,63,126])
+df_ml=fmtransforms.dfvelocity(df_ml,'Close_lrstd25',windows=[5])
+df_ml=fmtransforms.dfvelocity(df_ml,'Close_lrstd63',windows=[5])
+df_ml=fmtransforms.dfvelocity(df_ml,'Close_lrstd126',windows=[5])
+
+
+print(df_ml.columns)
+```
+
+```{r}
+
+```
+
